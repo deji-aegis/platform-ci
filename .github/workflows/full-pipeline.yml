@@ -21,6 +21,12 @@ on:
       registry:
         type: string
         required: true
+      helm_chart_path:
+        required: true
+        type: string
+      helm_namespace:
+        required: true
+        type: string
       languages:
         type: string
         default: '["javascript-typescript"]'
