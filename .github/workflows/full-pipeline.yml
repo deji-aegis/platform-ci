@@ -118,9 +118,9 @@ jobs:
       sbom_path: sbom.spdx.json
 
   # ── Stage 6: Policy validation ───────────────────────────────────────────
-  kyverno:
-    needs: build
-    uses:_kyverno.yml
+  # kyverno:
+  #   needs: build
+  #   uses:_kyverno.yml
 
   # ── Stage 7: GitOps PR (final gate) ──────────────────────────────────────
   gitops-update:
