@@ -1,0 +1,48 @@
+name: Reusable - Attest SBOM
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        type: string
+        required: true
+      sbom_path:
+        type: string
+        default: sbom.spdx.json
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  attest:
+    name: Attest SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
+        with:
+          cosign-release: 'v2.4.0'
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: sbom-spdx
+
+      - name: Attest SBOM to image
+        run: |
+          cosign attest --yes \
+            --predicate ${{ inputs.sbom_path }} \
+            --type spdxjson \
+            ${{ inputs.image_ref }}
+
+      - name: Verify attestation
+        run: |
+          cosign verify-attestation \
+            --type spdxjson \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ inputs.image_ref }}

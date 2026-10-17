@@ -1,0 +1,39 @@
+name: Reusable - SLSA Provenance
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        type: string
+        required: true
+      image_digest:
+        type: string
+        required: true
+      aws_region:
+        type: string
+        default: eu-west-2
+      registry:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  actions: read
+
+jobs:
+  provenance:
+    name: Generate SLSA L3 Provenance
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+    with:
+      image: ${{ inputs.image_name }}
+      digest: ${{ inputs.image_digest }}
+      registry-username: ${{ github.actor }}
+      private-repository: false
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}

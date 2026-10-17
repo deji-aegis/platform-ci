@@ -1,0 +1,32 @@
+name: _typecheck
+
+on:
+  workflow_call: {}
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # AUTHORITATIVE: whole project, emits SARIF for the Security tab
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: mypy
+        run: |
+          pip install mypy
+          mypy . --strict

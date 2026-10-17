@@ -1,0 +1,39 @@
+name: Reusable - Sign Image
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  sign:
+    name: Cosign Sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
+        with:
+          cosign-release: 'v2.4.0'
+
+      - name: Sign image (keyless)
+        run: |
+          cosign sign --yes \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "ref=${{ github.ref }}" \
+            -a "sha=${{ github.sha }}" \
+            ${{ inputs.image_ref }}
+
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ inputs.image_ref }}

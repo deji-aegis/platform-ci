@@ -1,0 +1,107 @@
+name: Reusable - Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        type: string
+        required: true
+      push:
+        type: boolean
+        default: false
+      aws_region:
+        type: string
+        default: eu-west-2
+      dockerfile:
+        type: string
+        default: Dockerfile
+      platforms:
+        type: string
+        default: linux/amd64
+    outputs:
+      image_ref:
+        description: "Fully qualified image reference (registry/name@sha256:...)"
+        value: ${{ jobs.build.outputs.image_ref }}
+      image_digest:
+        description: "Image digest only (sha256:...)"
+        value: ${{ jobs.build.outputs.image_digest }}
+      image_tag:
+        description: "Image tag (git SHA)"
+        value: ${{ jobs.build.outputs.image_tag }}
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  build:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.build.outputs.image_ref }}
+      image_digest: ${{ steps.build.outputs.digest }}
+      image_tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        if: inputs.push
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+          role-session-name: gha-build-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: inputs.push
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bcda4e2c0f5eaad6e # v2
+        with:
+          mask-password: "true"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5
+        with:
+          images: ${{ inputs.push && format('{0}/{1}', steps.ecr.outputs.registry, inputs.image_name) || inputs.image_name }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false      # SLSA generator produces this separately
+          sbom: false            # Syft produces this separately
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Compose image reference
+        id: image
+        if: inputs.push
+        run: |
+          echo "image_ref=${{ steps.ecr.outputs.registry }}/${{ inputs.image_name }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+      - name: Show build summary
+        run: |
+          echo "### Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ steps.image.outputs.image_ref || inputs.image_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: \`${{ steps.meta.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"

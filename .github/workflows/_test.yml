@@ -1,0 +1,35 @@
+name: _test
+
+on:
+  workflow_call:
+    inputs:
+      coverage_threshold:
+        type: number
+        default: 80
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # AUTHORITATIVE: full suite, coverage-gated, not --findRelatedTests
+      - name: Unit tests
+        run: npx jest --ci --coverage --coverageThreshold="{\"global\":{\"lines\":${{ inputs.coverage_threshold }}}}"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/

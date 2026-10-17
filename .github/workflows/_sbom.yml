@@ -1,0 +1,40 @@
+name: Reusable - SBOM Generation
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        type: string
+        required: true
+    outputs:
+      sbom_spdx:
+        value: ${{ jobs.syft.outputs.sbom_spdx }}
+      sbom_cdx:
+        value: ${{ jobs.syft.outputs.sbom_cdx }}
+
+permissions:
+  contents: read
+
+jobs:
+  syft:
+    name: Generate SBOMs
+    runs-on: ubuntu-latest
+    outputs:
+      sbom_spdx: sbom.spdx.json
+      sbom_cdx: sbom.cdx.json
+    steps:
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
+        with:
+          image: ${{ inputs.image_ref }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          artifact-name: sbom-spdx
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
+        with:
+          image: ${{ inputs.image_ref }}
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          artifact-name: sbom-cyclonedx

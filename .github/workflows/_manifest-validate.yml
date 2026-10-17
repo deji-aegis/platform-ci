@@ -1,0 +1,144 @@
+name: Reusable - Manifest Validation
+
+on:
+  workflow_call:
+    inputs:
+      helm_chart_path:
+        type: string
+        default: "deploy/helm"
+      helm_values_file:
+        type: string
+        default: "values.yaml"
+      helm_release_name:
+        type: string
+        default: "app"
+      helm_namespace:
+        type: string
+        default: "default"
+      policy_repo:
+        type: string
+        default: "YOUR_ORG/platform-policies"
+      policy_ref:
+        type: string
+        default: "main"
+      policy_path:
+        type: string
+        default: "kyverno"
+      fail_on_policy_violation:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Manifest + Policy Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: Checkout policy repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.policy_repo }}
+          ref: ${{ inputs.policy_ref }}
+          path: policies
+
+      - name: Install Helm
+        uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4
+        with:
+          version: v3.16.3
+
+      - name: Install kubeconform
+        run: |
+          curl -sSLo kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+          kubeconform -v
+
+      - name: Install Kyverno CLI
+        run: |
+          curl -sSLo kyverno.tar.gz \
+            https://github.com/kyverno/kyverno/releases/download/v1.13.4/kyverno-cli_v1.13.4_linux_x86_64.tar.gz
+          tar -xzf kyverno.tar.gz
+          sudo mv kyverno /usr/local/bin/
+          kyverno version
+
+      - name: Render Helm chart
+        run: |
+          helm template ${{ inputs.helm_release_name }} \
+            app/${{ inputs.helm_chart_path }} \
+            --namespace ${{ inputs.helm_namespace }} \
+            -f app/${{ inputs.helm_chart_path }}/${{ inputs.helm_values_file }} \
+            > /tmp/rendered.yaml
+          echo "Rendered $(grep -c '^kind:' /tmp/rendered.yaml) resources"
+
+      # ── Gate 1: Kubernetes schema validation ─────────────────────────────
+      - name: Validate against Kubernetes schemas
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.30.0 \
+            /tmp/rendered.yaml
+
+      # ── Gate 2: Kyverno policy validation ────────────────────────────────
+      - name: Run Kyverno CLI policy validation
+        id: kyverno
+        run: |
+          set +e
+          kyverno apply \
+            policies/${{ inputs.policy_path }} \
+            --resource /tmp/rendered.yaml \
+            --policy-report \
+            --detailed-results \
+            > /tmp/kyverno-output.txt 2>&1
+          EXIT=$?
+          cat /tmp/kyverno-output.txt
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Check for policy violations
+        if: inputs.fail_on_policy_violation
+        run: |
+          # Kyverno CLI exits non-zero on failures; parse the report
+          if grep -qE "fail: [1-9]|error: [1-9]" /tmp/kyverno-output.txt; then
+            echo "::error::Kyverno policy violations detected"
+            echo "--- Violations ---"
+            grep -E "fail:|error:" /tmp/kyverno-output.txt || true
+            exit 1
+          fi
+          echo "✅ No Kyverno policy violations"
+
+      - name: Upload Kyverno policy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kyverno-policy-report
+          path: |
+            /tmp/kyverno-output.txt
+            policy-report.yaml
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Manifest Validation"
+            echo ""
+            echo "| Gate | Status |"
+            echo "|---|---|"
+            echo "| Helm render | ✅ |"
+            echo "| kubeconform schema | ✅ |"
+            echo "| Kyverno policies | ${{ steps.kyverno.outputs.exit_code == '0' && '✅' || '❌' }} |"
+            echo ""
+            echo "### Kyverno Output"
+            echo '```'
+            tail -50 /tmp/kyverno-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

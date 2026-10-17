@@ -1,0 +1,90 @@
+name: Reusable - GitOps Update
+
+on:
+  workflow_call:
+    inputs:
+      gitops_repo:
+        type: string
+        required: true
+      app_name:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
+      image_digest:
+        type: string
+        required: true
+      auto_merge:
+        type: boolean
+        default: false
+    secrets:
+      GITOPS_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Open GitOps PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.gitops_repo }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Install yq
+        uses: mikefarah/yq@c48c8ff1e03e2e1a2f5b5ec5b2e7a4d3f5c5a4b3 # placeholder — pin to real SHA
+        with:
+          cmd: yq --version
+
+      - name: Update image digest
+        working-directory: gitops
+        run: |
+          FILE="applications/${{ inputs.app_name }}/${{ inputs.environment }}/values.yaml"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::File $FILE not found"
+            exit 1
+          fi
+          yq -i '.image.digest = "${{ inputs.image_digest }}"' "$FILE"
+          yq -i '.image.tag = ""' "$FILE"
+
+      - name: Create Pull Request
+        id: pr
+        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7
+        with:
+          path: gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          branch: "aegis/${{ inputs.app_name }}-${{ inputs.environment }}-${{ github.sha }}"
+          base: main
+          commit-message: "chore(${{ inputs.app_name }}): update image for ${{ inputs.environment }}"
+          title: "Update ${{ inputs.app_name }} (${{ inputs.environment }})"
+          body: |
+            Automated GitOps update from `${{ github.repository }}`.
+
+            | Field | Value |
+            |---|---|
+            | App | `${{ inputs.app_name }}` |
+            | Environment | `${{ inputs.environment }}` |
+            | Image digest | `${{ inputs.image_digest }}` |
+            | Source commit | `${{ github.sha }}` |
+            | Source workflow | `${{ github.workflow }}` |
+
+            Argo CD will sync this to the cluster once merged.
+          labels: |
+            gitops
+            automated
+            ${{ inputs.environment }}
+          delete-branch: true
+
+      - name: Enable auto-merge (dev only)
+        if: inputs.auto_merge && inputs.environment == 'dev'
+        working-directory: gitops
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          gh pr merge --auto --squash "${{ steps.pr.outputs.pull-request-number }}"

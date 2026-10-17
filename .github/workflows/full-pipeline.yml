@@ -1,0 +1,136 @@
+name: Full DevSecOps Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        type: string
+        required: true
+      gitops_repo:
+        type: string
+        default: "Secops/platform-gitops"
+      gitops_app_name:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: dev
+      aws_region:
+        type: string
+        default: eu-west-2
+      registry:
+        type: string
+        required: true
+      languages:
+        type: string
+        default: '["javascript-typescript"]'
+      fail_on_finding:
+        type: boolean
+        default: true
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      GITOPS_TOKEN:
+        required: true
+      GITLEAKS_LICENSE:
+        required: false
+      SEMGREP_APP_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Stage 1: Static analysis (parallel, no build dependency) ─────────────
+  lint:
+    uses: ./.github/workflows/_lint.yml
+
+  typecheck:
+    uses: ./.github/workflows/_typecheck.yml
+
+  test:
+    uses: ./.github/workflows/_test.yml
+    with:
+      coverage_threshold: 80
+  
+  secrets:
+    uses: ./.github/workflows/_secrets.yml
+    with:
+      fail_on_finding: ${{ inputs.fail_on_finding }}
+
+  sast:
+    uses: ./.github/workflows/_sast.yml
+    with:
+      languages: ${{ inputs.languages }}
+
+  sca:
+    uses: ./.github/workflows/_sca.yml
+    with:
+      fail_on_finding: ${{ inputs.fail_on_finding }}
+
+  # ── Stage 2: Build ────────────────────────────────────────────────────────
+  build:
+    needs: [secrets, sast, sca, lint, typecheck, test]
+    uses: ./.github/workflows/_build.yml
+    with:
+      image_name: ${{ inputs.image_name }}
+      push: true
+      aws_region: ${{ inputs.aws_region }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+  # ── Stage 3: Post-build analysis (parallel) ──────────────────────────────
+  container-scan:
+    needs: build
+    uses: ./.github/workflows/_container-scan.yml
+    with:
+      image_ref: ${{ needs.build.outputs.image_ref }}
+      fail_on_finding: ${{ inputs.fail_on_finding }}
+
+  sbom:
+    needs: build
+    uses: ./.github/workflows/_sbom.yml
+    with:
+      image_ref: ${{ needs.build.outputs.image_ref }}
+
+  # ── Stage 4: Supply chain (parallel after SBOM) ──────────────────────────
+  slsa-provenance:
+    needs: build
+    uses: ./.github/workflows/_slsa-provenance.yml
+    with:
+      image_name: ${{ inputs.image_name }}
+      image_digest: ${{ needs.build.outputs.image_digest }}
+      aws_region: ${{ inputs.aws_region }}
+      registry: ${{ inputs.registry }}
+
+  signing:
+    needs: build
+    uses: ./.github/workflows/_signing.yml
+    with:
+      image_ref: ${{ needs.build.outputs.image_ref }}
+
+  # ── Stage 5: Attestation (needs SBOM) ────────────────────────────────────
+  attest:
+    needs: [build, sbom, signing]
+    uses: ./.github/workflows/_attest.yml
+    with:
+      image_ref: ${{ needs.build.outputs.image_ref }}
+      sbom_path: sbom.spdx.json
+
+  # ── Stage 6: Policy validation ───────────────────────────────────────────
+  kyverno:
+    needs: build
+    uses:_kyverno.yml
+
+  # ── Stage 7: GitOps PR (final gate) ──────────────────────────────────────
+  gitops-update:
+    needs: [build, container-scan, slsa-provenance, signing, attest, kyverno]
+    uses: ./.github/workflows/_gitops-update.yml
+    with:
+      gitops_repo: ${{ inputs.gitops_repo }}
+      app_name: ${{ inputs.gitops_app_name }}
+      environment: ${{ inputs.environment }}
+      image_digest: ${{ needs.build.outputs.image_digest }}
+      auto_merge: ${{ inputs.environment == 'dev' }}
+    secrets:
+      GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
