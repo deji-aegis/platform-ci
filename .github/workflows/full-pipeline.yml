@@ -106,6 +106,8 @@ jobs:
       actions: read        
       contents: read      
       id-token: write
+      packages: write 
+
     uses: ./.github/workflows/_slsa-provenance.yml
     with:
       image_name: ${{ inputs.image_name }}
