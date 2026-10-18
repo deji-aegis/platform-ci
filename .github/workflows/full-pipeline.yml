@@ -102,6 +102,10 @@ jobs:
   # ── Stage 4: Supply chain (parallel after SBOM) ──────────────────────────
   slsa-provenance:
     needs: build
+    permissions:
+      actions: read        
+      contents: read      
+      id-token: write
     uses: ./.github/workflows/_slsa-provenance.yml
     with:
       image_name: ${{ inputs.image_name }}
