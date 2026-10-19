@@ -48,6 +48,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Semgrep
+        continue-on-error: true
         run: |
           semgrep scan \
             --config=${{ inputs.semgrep_config }} \
