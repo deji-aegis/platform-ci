@@ -23,6 +23,7 @@ jobs:
         with:
           repository: deji-aegis/platform-policies
           path: platform-policies
+          token: ${{ secrets.GITHUB_TOKEN }} # or GITOPS_TOKEN if it's private
 
       - name: Render Helm Chart
         run: |

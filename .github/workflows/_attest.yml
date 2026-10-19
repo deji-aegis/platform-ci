@@ -27,10 +27,11 @@ jobs:
         with:
           cosign-release: 'v2.4.0'
 
-      - name: Download SBOM artifact
+      - name: Download SPDX SBOM artifact
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
           name: sbom-spdx
+          path: .
 
       - name: Attest SBOM to image
         run: |
