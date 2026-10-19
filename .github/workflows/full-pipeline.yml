@@ -45,19 +45,19 @@ on:
 
 jobs:
   # ── Stage 1: Static analysis (parallel, no build dependency) ─────────────
-  # lint:
-  #   uses: ./.github/workflows/_lint.yml
+  lint:
+    uses: ./.github/workflows/_lint.yml
 
-  # typecheck:
-  #   uses: ./.github/workflows/_typecheck.yml
+  typecheck:
+    uses: ./.github/workflows/_typecheck.yml
 
-  # test:
-  #   permissions:
-  #     contents: read
-  #     checks: write
-  #   uses: ./.github/workflows/_test.yml
-  #   with:
-  #     coverage_threshold: 80
+  test:
+    permissions:
+      contents: read
+      checks: write
+    uses: ./.github/workflows/_test.yml
+    with:
+      coverage_threshold: 80
   
   secrets:
     uses: ./.github/workflows/_secrets.yml
@@ -76,7 +76,7 @@ jobs:
 
   # ── Stage 2: Build ────────────────────────────────────────────────────────
   build:
-    needs: [secrets, sast, sca]
+    needs: [secrets, sast, sca, lint, typecheck, test]
     uses: ./.github/workflows/_build.yml
     with:
       image_name: ${{ inputs.image_name }}
