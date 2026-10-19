@@ -16,22 +16,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build Docker image
+        run: docker build -t wattzgoat:test .
+
+      - name: Start container
+        run: |
+          docker run -d --name wattzgoat-test -p 5000:5000 -p 5001:5001 wattzgoat:test
+          # Wait for the app to be ready (checking HTTPS on port 5000)
+          for i in $(seq 1 30); do
+            if curl -sk https://127.0.0.1:5000/login -o /dev/null; then
+              echo "App is up"
+              break
+            fi
+            sleep 2
+          done
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r tests/requirements-dev.txt
+      - name: Install test dependencies
+        run: pip install -r tests/requirements-dev.txt
 
       - name: Run tests
         env:
           WATTZGOAT_BASE_URL: https://127.0.0.1:5000
-        run: |
-          # Start the app in the background
-          python run.py &
-          sleep 5
-          pytest tests/ -v
+        run: pytest tests/ -v
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs wattzgoat-test
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f wattzgoat-test || true
