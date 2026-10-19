@@ -6,6 +6,14 @@ on:
       image_ref:
         type: string
         required: true
+        
+      aws_region:
+        type: string
+        default: eu-west-2
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+
     outputs:
       sbom_spdx:
         value: ${{ jobs.syft.outputs.sbom_spdx }}
@@ -23,6 +31,16 @@ jobs:
       sbom_spdx: sbom.spdx.json
       sbom_cdx: sbom.cdx.json
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+
       - name: Generate SPDX SBOM
         uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
         with:

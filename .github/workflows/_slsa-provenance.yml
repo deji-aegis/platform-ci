@@ -15,6 +15,9 @@ on:
       registry:
         type: string
         required: true
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
 
 permissions:
   contents: read
@@ -23,7 +26,24 @@ permissions:
   actions: read
 
 jobs:
+  get-ecr-token:
+    runs-on: ubuntu-latest
+    outputs:
+      password: ${{ steps.get-pass.outputs.password }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Get ECR password
+        id: get-pass
+        run: |
+          echo "password=$(aws ecr get-login-password --region ${{ inputs.aws_region }})" >> "$GITHUB_OUTPUT"
+
+
   provenance:
+    needs: get-ecr-token
     name: Generate SLSA L3 Provenance
     permissions:
       actions: read

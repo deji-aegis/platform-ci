@@ -54,7 +54,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ inputs.aws_region }}
           role-session-name: gha-build-${{ github.run_id }}
-          audience: sts.amazonaws.com
+          # audience: sts.amazonaws.com
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -92,7 +92,6 @@ jobs:
 
       - name: Compose image reference
         id: image
-        if: inputs.push
         run: |
           # Use login-ecr registry output instead of a missing ecr id
           echo "image_ref=${{ steps.login-ecr.outputs.registry }}/${{ inputs.image_name }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
