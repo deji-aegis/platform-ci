@@ -147,7 +147,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/_kyverno.yml
     with:
-      helm_chart_path: ./helm/${{ inputs.helm_chart_path }}
+      helm_chart_path: ${{ inputs.helm_chart_path }}
       helm_namespace: ${{ inputs.helm_namespace }}
 
   # ── Stage 7: GitOps PR (final gate) ──────────────────────────────────────

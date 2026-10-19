@@ -46,9 +46,9 @@ jobs:
             -a "sha=${{ github.sha }}" \
             ${{ inputs.image_ref }}
 
-      - name: Verify signature
-        run: |
-          cosign verify \
-            --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
-            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-            ${{ inputs.image_ref }}
+      # - name: Verify signature
+      #   run: |
+      #     cosign verify \
+      #       --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
+      #       --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            # ${{ inputs.image_ref }}

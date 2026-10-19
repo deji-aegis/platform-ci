@@ -53,7 +53,6 @@ jobs:
     with:
       image: ${{ inputs.image_name }}
       digest: ${{ inputs.image_digest }}
-      registry-username: ${{ github.actor }}
-      private-repository: false
+      registry-username: "AWS"
     secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+      registry-password: ${{ needs.get-ecr-token.outputs.password }} 
