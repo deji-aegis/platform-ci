@@ -140,7 +140,7 @@ jobs:
     uses: ./.github/workflows/_attest.yml
     with:
       image_ref: ${{ needs.build.outputs.image_ref }}
-      sbom_path: sbom.spdx.json
+      
 
   # ── Stage 6: Policy validation ───────────────────────────────────────────
   kyverno:
