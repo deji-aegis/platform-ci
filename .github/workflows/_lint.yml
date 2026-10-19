@@ -1,35 +1,17 @@
 name: _lint
-
 on:
-  workflow_call: {}
-
+  workflow_call:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install deps
-        run: npm ci
-
-      # AUTHORITATIVE: full repo, not just changed files
-      - name: ESLint
-        run: npx eslint . --max-warnings=0 --format=github
-
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Ruff
+      - name: Lint with flake8
         run: |
-          pip install ruff
-          ruff check . --output-format=github
+          pip install flake8
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics

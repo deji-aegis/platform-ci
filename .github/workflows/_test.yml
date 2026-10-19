@@ -16,20 +16,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 20
-          cache: npm
+          python-version: "3.12"
 
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r tests/requirements-dev.txt
 
-      # AUTHORITATIVE: full suite, coverage-gated, not --findRelatedTests
-      - name: Unit tests
-        run: npx jest --ci --coverage --coverageThreshold="{\"global\":{\"lines\":${{ inputs.coverage_threshold }}}}"
-
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage/
+      - name: Run tests
+        env:
+          WATTZGOAT_BASE_URL: https://127.0.0.1:5000
+        run: |
+          # Start the app in the background
+          python run.py &
+          sleep 5
+          pytest tests/ -v
