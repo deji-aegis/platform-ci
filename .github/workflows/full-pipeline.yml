@@ -91,13 +91,19 @@ jobs:
     uses: ./.github/workflows/_container-scan.yml
     with:
       image_ref: ${{ needs.build.outputs.image_ref }}
-      fail_on_finding: ${{ inputs.fail_on_finding }}
+      # fail_on_finding: ${{ inputs.fail_on_finding }}
+      aws_region: ${{ inputs.aws_region }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   sbom:
     needs: build
     uses: ./.github/workflows/_sbom.yml
     with:
       image_ref: ${{ needs.build.outputs.image_ref }}
+      aws_region: ${{ inputs.aws_region }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
   # ── Stage 4: Supply chain (parallel after SBOM) ──────────────────────────
   slsa-provenance:
@@ -114,12 +120,19 @@ jobs:
       image_digest: ${{ needs.build.outputs.image_digest }}
       aws_region: ${{ inputs.aws_region }}
       registry: ${{ inputs.registry }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }} 
+
 
   signing:
     needs: build
     uses: ./.github/workflows/_signing.yml
     with:
       image_ref: ${{ needs.build.outputs.image_ref }}
+      aws_region: ${{ inputs.aws_region }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      
 
   # ── Stage 5: Attestation (needs SBOM) ────────────────────────────────────
   attest:

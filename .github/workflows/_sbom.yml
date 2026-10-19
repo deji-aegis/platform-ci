@@ -6,7 +6,7 @@ on:
       image_ref:
         type: string
         required: true
-        
+
       aws_region:
         type: string
         default: eu-west-2
@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   syft:
