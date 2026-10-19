@@ -31,12 +31,20 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
           name: sbom-spdx
-          path: sbom
+          path: sbom # 👈 Forces extraction into a folder named 'sbom'
+
+      - name: Debug - List files
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "sbom folder contents:"
+          ls -la sbom/
 
       - name: Attest SBOM to image
         run: |
+          # 👇 Use the exact path we know it's in
           cosign attest --yes \
-            --predicate sbom/${{ inputs.sbom_path }} \
+            --predicate sbom/sbom.spdx.json \
             --type spdxjson \
             ${{ inputs.image_ref }}
 
