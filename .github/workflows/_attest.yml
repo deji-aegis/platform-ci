@@ -6,6 +6,12 @@ on:
       image_ref:
         type: string
         required: true
+      aws_region:
+        type: string
+        default: eu-west-2
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
 
 permissions:
   contents: read
@@ -24,24 +30,26 @@ jobs:
         with:
           cosign-release: 'v2.4.0'
 
-      - name: Download SPDX SBOM artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
         with:
-          name: sbom-spdx
-          path: sbom 
-          
-      - name: Debug - List files
-        run: |
-          echo "Current directory contents:"
-          ls -la
-          echo "sbom folder contents:"
-          ls -la sbom/
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
+        with:
+          image: ${{ inputs.image_ref }}
+          format: spdx-json
+          output-file: sbom.spdx.json
 
       - name: Attest SBOM to image
         run: |
-          # 👇 Use the exact path we know it's in
           cosign attest --yes \
-            --predicate sbom/sbom.spdx \
+            --predicate sbom.spdx.json \
             --type spdxjson \
             ${{ inputs.image_ref }}
 
@@ -52,3 +60,72 @@ jobs:
             --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
             --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
             ${{ inputs.image_ref }}
+
+
+
+
+
+
+
+
+# name: Reusable - Attest SBOM
+
+# on:
+#   workflow_call:
+#     inputs:
+#       image_ref:
+#         type: string
+#         required: true
+#       aws_region:
+#         type: string
+#         default: eu-west-2
+#     secrets:
+#       AWS_ROLE_ARN:
+#         required: true
+
+
+# permissions:
+#   contents: read
+#   id-token: write
+#   packages: write
+
+# jobs:
+#   attest:
+#     name: Attest SBOM
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Install cosign
+#         uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
+#         with:
+#           cosign-release: 'v2.4.0'
+
+#       - name: Download SPDX SBOM artifact
+#         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+#         with:
+#           name: sbom-spdx
+#           path: sbom 
+          
+#       - name: Debug - List files
+#         run: |
+#           echo "Current directory contents:"
+#           ls -la
+#           echo "sbom folder contents:"
+#           ls -la sbom/
+
+#       - name: Attest SBOM to image
+#         run: |
+#           # 👇 Use the exact path we know it's in
+#           cosign attest --yes \
+#             --predicate sbom/sbom.spdx \
+#             --type spdxjson \
+#             ${{ inputs.image_ref }}
+
+#       - name: Verify attestation
+#         run: |
+#           cosign verify-attestation \
+#             --type spdxjson \
+#             --certificate-identity-regexp="https://github.com/${{ github.repository }}/.+" \
+#             --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+#             ${{ inputs.image_ref }}

@@ -140,6 +140,9 @@ jobs:
     uses: ./.github/workflows/_attest.yml
     with:
       image_ref: ${{ needs.build.outputs.image_ref }}
+      aws_region: ${{ inputs.aws_region }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       
 
   # ── Stage 6: Policy validation ───────────────────────────────────────────
