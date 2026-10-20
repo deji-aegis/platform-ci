@@ -35,29 +35,32 @@ jobs:
         with:
           repository: ${{ inputs.gitops_repo }}
           token: ${{ secrets.GITOPS_TOKEN }}
-          path: gitops
+          path: gitops-repo
 
       - name: Install yq
         uses: mikefarah/yq@21e2fdaea2abeef46a5d44fc475852fe45d48065 # v4.9.8
         with:
           cmd: yq --version
 
-      - name: Update image digest
-        working-directory: gitops
+      - name: Update Image Digest and Tag
         run: |
+          cd gitops-repo
           FILE="applications/${{ inputs.app_name }}/${{ inputs.environment }}/values.yaml"
-          if [ ! -f "$FILE" ]; then
-            echo "::error::File $FILE not found"
-            exit 1
-          fi
+          
+          # Update the digest to the new SHA256
           yq -i '.image.digest = "${{ inputs.image_digest }}"' "$FILE"
-          yq -i '.image.tag = ""' "$FILE"
+          
+          # Update the tag to "null" or your version so it forces ArgoCD to pull the new digest
+          yq -i '.image.tag = "sha-${{ github.sha }}"' "$FILE"
+          
+          echo "Updated values.yaml:"
+          cat "$FILE"
 
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7
         with:
-          path: gitops
+          path: gitops-repo
           token: ${{ secrets.GITOPS_TOKEN }}
           branch: "aegis/${{ inputs.app_name }}-${{ inputs.environment }}-${{ github.sha }}"
           base: main
@@ -83,7 +86,7 @@ jobs:
 
       - name: Enable auto-merge (dev only)
         if: inputs.auto_merge && inputs.environment == 'dev'
-        working-directory: gitops
+        working-directory: gitops-repo
         env:
           GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
         run: |
