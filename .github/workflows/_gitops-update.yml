@@ -38,7 +38,7 @@ jobs:
           path: gitops
 
       - name: Install yq
-        uses: mikefarah/yq@c48c8ff1e03e2e1a2f5b5ec5b2e7a4d3f5c5a4b3 # placeholder — pin to real SHA
+        uses: mikefarah/yq@21e2fdaea2abeef46a5d44fc475852fe45d48065 # v4.9.8
         with:
           cmd: yq --version
 

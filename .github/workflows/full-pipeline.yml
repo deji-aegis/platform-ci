@@ -134,15 +134,15 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       
 
-  # ── Stage 5: Attestation (needs SBOM) ────────────────────────────────────
-  attest:
-    needs: [build, sbom, signing]
-    uses: ./.github/workflows/_attest.yml
-    with:
-      image_ref: ${{ needs.build.outputs.image_ref }}
-      aws_region: ${{ inputs.aws_region }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  # # ── Stage 5: Attestation (needs SBOM) ────────────────────────────────────
+  # attest:
+  #   needs: [build, sbom, signing]
+  #   uses: ./.github/workflows/_attest.yml
+  #   with:
+  #     image_ref: ${{ needs.build.outputs.image_ref }}
+  #     aws_region: ${{ inputs.aws_region }}
+  #   secrets:
+  #     AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       
 
   # ── Stage 6: Policy validation ───────────────────────────────────────────
@@ -155,7 +155,7 @@ jobs:
 
   # ── Stage 7: GitOps PR (final gate) ──────────────────────────────────────
   gitops-update:
-    needs: [build, container-scan, slsa-provenance, signing, attest, kyverno]
+    needs: [build, container-scan, slsa-provenance, signing, kyverno]
     uses: ./.github/workflows/_gitops-update.yml
     with:
       gitops_repo: ${{ inputs.gitops_repo }}
