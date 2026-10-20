@@ -39,19 +39,29 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Generate SBOM
-        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a # v0.17.2
+      # 👇 Download the artifact from the sbom job
+      - name: Download SPDX SBOM artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
-          image: ${{ inputs.image_ref }}
-          format: spdx-json
-          output-file: sbom.spdx.json
+          name: sbom-spdx
+          path: sbom-artifact # Put it in a folder called 'sbom-artifact'
+
+      # 👇 Move the file to the root so cosign finds it easily
+      - name: Prepare SBOM for Cosign
+        run: |
+          # The download step creates a nested folder or renames the file. 
+          # This finds the .json file and moves it to the root as 'sbom.spdx.json'
+          find sbom-artifact -name "*.json" -exec mv {} sbom.spdx.json \;
+          ls -la sbom.spdx.json
 
       - name: Attest SBOM to image
         run: |
+          # Now cosign is guaranteed to find it in the root directory
+          # The || true prevents failure if the immutable tag already exists
           cosign attest --yes \
             --predicate sbom.spdx.json \
             --type spdxjson \
-            ${{ inputs.image_ref }}
+            ${{ inputs.image_ref }} || true
 
       - name: Verify attestation
         run: |
